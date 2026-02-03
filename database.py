@@ -3,21 +3,33 @@ Database models for EROME Automation profiles
 PostgreSQL database for storing multiple profile configurations
 """
 import os
+import sqlite3
 from pathlib import Path
 from typing import List, Dict, Optional
 from datetime import datetime
 import json
+
+# Try to import psycopg2 for PostgreSQL support
+POSTGRES_AVAILABLE = False
 try:
     import psycopg2
     from psycopg2 import pool
     from psycopg2.extras import RealDictCursor
     POSTGRES_AVAILABLE = True
 except ImportError:
-    POSTGRES_AVAILABLE = False
-    # Fallback to SQLite if psycopg2 not available
-    import sqlite3
+    pass
 
-# Import config for defaults
+# Import config for defaults (separate from psycopg2 import)
+DEFAULT_IMAGEMAGICK = ''
+DEFAULT_HANDBRAKE = ''
+DEFAULT_IMAGE_QUALITY_MIN = 85
+DEFAULT_IMAGE_QUALITY_MAX = 99
+DEFAULT_VIDEO_RF_MIN = 17.5
+DEFAULT_VIDEO_RF_MAX = 29
+DEFAULT_ENCODER_PRESETS = 'veryfast,faster,fast,medium,slow'
+DEFAULT_IMAGES_PER_POST = 2
+DEFAULT_VIDEOS_PER_POST = 1
+
 try:
     import config
     DEFAULT_IMAGEMAGICK = str(config.IMAGEMAGICK_PATH)
@@ -29,17 +41,9 @@ try:
     DEFAULT_ENCODER_PRESETS = ','.join(config.VIDEO_ENCODER_PRESETS)
     DEFAULT_IMAGES_PER_POST = config.IMAGES_PER_POST
     DEFAULT_VIDEOS_PER_POST = config.VIDEOS_PER_POST
-except:
-    # Fallback defaults if config.py doesn't exist
-    DEFAULT_IMAGEMAGICK = ''
-    DEFAULT_HANDBRAKE = ''
-    DEFAULT_IMAGE_QUALITY_MIN = 85
-    DEFAULT_IMAGE_QUALITY_MAX = 99
-    DEFAULT_VIDEO_RF_MIN = 17.5
-    DEFAULT_VIDEO_RF_MAX = 29
-    DEFAULT_ENCODER_PRESETS = 'veryfast,faster,fast,medium,slow'
-    DEFAULT_IMAGES_PER_POST = 2
-    DEFAULT_VIDEOS_PER_POST = 1
+except Exception as e:
+    # Use defaults if config.py fails to import (e.g., on production servers)
+    pass
 
 
 class ProfileDatabase:
