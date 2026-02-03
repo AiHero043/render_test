@@ -2,7 +2,12 @@
 Configuration file for EROME automation system
 Edit these values to customize your automation workflow
 """
+import os
 from pathlib import Path
+
+# ========== DATABASE SETTINGS ==========
+# PostgreSQL database URL from environment variable
+DATABASE_URL = os.environ.get('DATABASE_URL', 'sqlite:///profiles.db')
 
 # ========== DIRECTORY PATHS ==========
 # Local directories

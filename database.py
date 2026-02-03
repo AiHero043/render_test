@@ -1,12 +1,21 @@
 """
 Database models for EROME Automation profiles
-SQLite database for storing multiple profile configurations
+PostgreSQL database for storing multiple profile configurations
 """
-import sqlite3
+import os
 from pathlib import Path
 from typing import List, Dict, Optional
 from datetime import datetime
 import json
+try:
+    import psycopg2
+    from psycopg2 import pool
+    from psycopg2.extras import RealDictCursor
+    POSTGRES_AVAILABLE = True
+except ImportError:
+    POSTGRES_AVAILABLE = False
+    # Fallback to SQLite if psycopg2 not available
+    import sqlite3
 
 # Import config for defaults
 try:
@@ -34,91 +43,192 @@ except:
 
 
 class ProfileDatabase:
-    """Manages profile storage in SQLite database"""
+    """Manages profile storage in PostgreSQL/SQLite database"""
     
-    def __init__(self, db_path: Path = Path("profiles.db")):
-        self.db_path = db_path
+    def __init__(self, db_url: str = None):
+        # Get database URL from environment or parameter
+        self.db_url = db_url or os.environ.get('DATABASE_URL', 'sqlite:///profiles.db')
+        
+        # Determine database type
+        if self.db_url.startswith('postgresql://') or self.db_url.startswith('postgres://'):
+            if not POSTGRES_AVAILABLE:
+                raise ImportError("psycopg2 not installed. Install with: pip install psycopg2-binary")
+            self.db_type = 'postgres'
+            # Create connection pool for PostgreSQL
+            self.pool = psycopg2.pool.SimpleConnectionPool(1, 10, self.db_url)
+        else:
+            self.db_type = 'sqlite'
+            # Extract path from sqlite URL
+            self.db_path = Path(self.db_url.replace('sqlite:///', ''))
+        
         self.init_database()
+    
+    def get_connection(self):
+        """Get database connection based on type"""
+        if self.db_type == 'postgres':
+            return self.pool.getconn()
+        else:
+            return sqlite3.connect(self.db_path)
+    
+    def return_connection(self, conn):
+        """Return connection to pool (for PostgreSQL)"""
+        if self.db_type == 'postgres':
+            self.pool.putconn(conn)
+        else:
+            conn.close()
     
     def init_database(self):
         """Initialize database schema"""
-        conn = sqlite3.connect(self.db_path)
+        conn = self.get_connection()
         cursor = conn.cursor()
         
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS profiles (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT UNIQUE NOT NULL,
-                download_folder_id TEXT NOT NULL,
-                upload_folder_id TEXT NOT NULL,
-                download_dir TEXT NOT NULL,
-                output_dir TEXT NOT NULL,
-                renewed_images_dir TEXT NOT NULL,
-                renewed_videos_dir TEXT NOT NULL,
-                download_post_start INTEGER,
-                download_post_end INTEGER,
-                credentials_file TEXT DEFAULT 'credentials.json',
-                token_file TEXT DEFAULT 'token.pickle',
-                delete_source BOOLEAN DEFAULT 0,
-                imagemagick_path TEXT,
-                image_quality_min INTEGER DEFAULT 85,
-                image_quality_max INTEGER DEFAULT 99,
-                handbrake_path TEXT,
-                video_rf_min REAL DEFAULT 17.5,
-                video_rf_max REAL DEFAULT 29,
-                encoder_presets TEXT DEFAULT 'veryfast,faster,fast,medium,slow',
-                current_post_number INTEGER DEFAULT 360,
-                set_value INTEGER DEFAULT 360,
-                max_post INTEGER DEFAULT 10000,
-                images_per_post INTEGER DEFAULT 2,
-                videos_per_post INTEGER DEFAULT 1,
-                enable_webhook BOOLEAN DEFAULT 0,
-                webhook_url TEXT,
-                state_file TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
+        # Use appropriate placeholder syntax
+        placeholder = '%s' if self.db_type == 'postgres' else '?'
         
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS automation_states (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                profile_id INTEGER NOT NULL,
-                current_post INTEGER DEFAULT 0,
-                next_trigger_post INTEGER DEFAULT 360,
-                posts_until_trigger INTEGER DEFAULT 360,
-                total_posts_created INTEGER DEFAULT 0,
-                renewal_count INTEGER DEFAULT 0,
-                last_successful_post INTEGER,
-                last_renewal_date TIMESTAMP,
-                FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE
-            )
-        ''')
-        
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS jobs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                profile_id INTEGER NOT NULL,
-                status TEXT DEFAULT 'pending',
-                force_run BOOLEAN DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                started_at TIMESTAMP,
-                completed_at TIMESTAMP,
-                error_message TEXT,
-                FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE
-            )
-        ''')
+        if self.db_type == 'postgres':
+            # PostgreSQL schema
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS profiles (
+                    id SERIAL PRIMARY KEY,
+                    name VARCHAR(255) UNIQUE NOT NULL,
+                    download_folder_id TEXT NOT NULL,
+                    upload_folder_id TEXT NOT NULL,
+                    download_dir TEXT NOT NULL,
+                    output_dir TEXT NOT NULL,
+                    renewed_images_dir TEXT NOT NULL,
+                    renewed_videos_dir TEXT NOT NULL,
+                    download_post_start INTEGER,
+                    download_post_end INTEGER,
+                    credentials_file TEXT DEFAULT 'credentials.json',
+                    token_file TEXT DEFAULT 'token.pickle',
+                    delete_source BOOLEAN DEFAULT FALSE,
+                    imagemagick_path TEXT,
+                    image_quality_min INTEGER DEFAULT 85,
+                    image_quality_max INTEGER DEFAULT 99,
+                    handbrake_path TEXT,
+                    video_rf_min REAL DEFAULT 17.5,
+                    video_rf_max REAL DEFAULT 29,
+                    encoder_presets TEXT DEFAULT 'veryfast,faster,fast,medium,slow',
+                    current_post_number INTEGER DEFAULT 360,
+                    set_value INTEGER DEFAULT 360,
+                    max_post INTEGER DEFAULT 10000,
+                    images_per_post INTEGER DEFAULT 2,
+                    videos_per_post INTEGER DEFAULT 1,
+                    enable_webhook BOOLEAN DEFAULT FALSE,
+                    webhook_url TEXT,
+                    state_file TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS automation_states (
+                    id SERIAL PRIMARY KEY,
+                    profile_id INTEGER NOT NULL,
+                    current_post INTEGER DEFAULT 0,
+                    next_trigger_post INTEGER DEFAULT 360,
+                    posts_until_trigger INTEGER DEFAULT 360,
+                    total_posts_created INTEGER DEFAULT 0,
+                    renewal_count INTEGER DEFAULT 0,
+                    last_successful_post INTEGER,
+                    last_renewal_date TIMESTAMP,
+                    FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE
+                )
+            ''')
+            
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS jobs (
+                    id SERIAL PRIMARY KEY,
+                    profile_id INTEGER NOT NULL,
+                    status TEXT DEFAULT 'pending',
+                    force_run BOOLEAN DEFAULT FALSE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    started_at TIMESTAMP,
+                    completed_at TIMESTAMP,
+                    error_message TEXT,
+                    FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE
+                )
+            ''')
+        else:
+            # SQLite schema
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS profiles (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT UNIQUE NOT NULL,
+                    download_folder_id TEXT NOT NULL,
+                    upload_folder_id TEXT NOT NULL,
+                    download_dir TEXT NOT NULL,
+                    output_dir TEXT NOT NULL,
+                    renewed_images_dir TEXT NOT NULL,
+                    renewed_videos_dir TEXT NOT NULL,
+                    download_post_start INTEGER,
+                    download_post_end INTEGER,
+                    credentials_file TEXT DEFAULT 'credentials.json',
+                    token_file TEXT DEFAULT 'token.pickle',
+                    delete_source BOOLEAN DEFAULT 0,
+                    imagemagick_path TEXT,
+                    image_quality_min INTEGER DEFAULT 85,
+                    image_quality_max INTEGER DEFAULT 99,
+                    handbrake_path TEXT,
+                    video_rf_min REAL DEFAULT 17.5,
+                    video_rf_max REAL DEFAULT 29,
+                    encoder_presets TEXT DEFAULT 'veryfast,faster,fast,medium,slow',
+                    current_post_number INTEGER DEFAULT 360,
+                    set_value INTEGER DEFAULT 360,
+                    max_post INTEGER DEFAULT 10000,
+                    images_per_post INTEGER DEFAULT 2,
+                    videos_per_post INTEGER DEFAULT 1,
+                    enable_webhook BOOLEAN DEFAULT 0,
+                    webhook_url TEXT,
+                    state_file TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS automation_states (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    profile_id INTEGER NOT NULL,
+                    current_post INTEGER DEFAULT 0,
+                    next_trigger_post INTEGER DEFAULT 360,
+                    posts_until_trigger INTEGER DEFAULT 360,
+                    total_posts_created INTEGER DEFAULT 0,
+                    renewal_count INTEGER DEFAULT 0,
+                    last_successful_post INTEGER,
+                    last_renewal_date TIMESTAMP,
+                    FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE
+                )
+            ''')
+            
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS jobs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    profile_id INTEGER NOT NULL,
+                    status TEXT DEFAULT 'pending',
+                    force_run BOOLEAN DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    started_at TIMESTAMP,
+                    completed_at TIMESTAMP,
+                    error_message TEXT,
+                    FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE
+                )
+            ''')
         
         conn.commit()
-        conn.close()
+        self.return_connection(conn)
     
     def create_profile(self, profile_data: Dict) -> bool:
         """Create a new profile"""
         try:
-            conn = sqlite3.connect(self.db_path)
+            conn = self.get_connection()
             cursor = conn.cursor()
             
-            cursor.execute('''
+            # Use appropriate placeholder
+            ph = '%s' if self.db_type == 'postgres' else '?'
+            
+            query = f'''
                 INSERT INTO profiles (
                     name, download_folder_id, upload_folder_id,
                     download_dir, output_dir, renewed_images_dir, renewed_videos_dir,
@@ -129,8 +239,10 @@ class ProfileDatabase:
                     current_post_number, set_value, max_post,
                     images_per_post, videos_per_post,
                     enable_webhook, webhook_url, state_file
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (
+                ) VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
+            '''
+            
+            cursor.execute(query, (
                 profile_data['name'],
                 profile_data['download_folder_id'],
                 profile_data['upload_folder_id'],
@@ -160,56 +272,78 @@ class ProfileDatabase:
                 f"automation_state_{profile_data['name'].lower().replace(' ', '_')}.json"
             ))
             
-            profile_id = cursor.lastrowid
+            # Get last inserted ID
+            if self.db_type == 'postgres':
+                cursor.execute('SELECT lastval()')
+                profile_id = cursor.fetchone()[0]
+            else:
+                profile_id = cursor.lastrowid
             
             # Create initial state
-            cursor.execute('''
+            state_query = f'''
                 INSERT INTO automation_states (profile_id, current_post, next_trigger_post, posts_until_trigger)
-                VALUES (?, ?, ?, ?)
-            ''', (profile_id, 0, profile_data.get('set_value', 360), profile_data.get('set_value', 360)))
+                VALUES ({ph}, {ph}, {ph}, {ph})
+            '''
+            cursor.execute(state_query, (profile_id, 0, profile_data.get('set_value', 360), profile_data.get('set_value', 360)))
             
             conn.commit()
-            conn.close()
+            self.return_connection(conn)
             return True
-        except sqlite3.IntegrityError:
-            return False
         except Exception as e:
             print(f"Error creating profile: {e}")
+            if self.db_type == 'postgres':
+                conn.rollback()
+                self.return_connection(conn)
             return False
     
     def get_all_profiles(self) -> List[Dict]:
         """Get all profiles"""
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
+        conn = self.get_connection()
         cursor = conn.cursor()
         
         cursor.execute('SELECT * FROM profiles ORDER BY created_at DESC')
         rows = cursor.fetchall()
         
-        profiles = [dict(row) for row in rows]
-        conn.close()
+        if self.db_type == 'postgres':
+            # PostgreSQL returns tuples, get column names
+            columns = [desc[0] for desc in cursor.description]
+            profiles = [dict(zip(columns, row)) for row in rows]
+        else:
+            conn.row_factory = sqlite3.Row
+            profiles = [dict(row) for row in rows]
         
+        self.return_connection(conn)
         return profiles
     
     def get_profile(self, profile_id: int) -> Optional[Dict]:
         """Get a specific profile"""
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
+        conn = self.get_connection()
         cursor = conn.cursor()
         
-        cursor.execute('SELECT * FROM profiles WHERE id = ?', (profile_id,))
+        ph = '%s' if self.db_type == 'postgres' else '?'
+        
+        cursor.execute(f'SELECT * FROM profiles WHERE id = {ph}', (profile_id,))
         row = cursor.fetchone()
         
         if row:
-            profile = dict(row)
+            if self.db_type == 'postgres':
+                columns = [desc[0] for desc in cursor.description]
+                profile = dict(zip(columns, row))
+            else:
+                conn.row_factory = sqlite3.Row
+                profile = dict(row)
             
             # Get state
-            cursor.execute('SELECT * FROM automation_states WHERE profile_id = ?', (profile_id,))
+            cursor.execute(f'SELECT * FROM automation_states WHERE profile_id = {ph}', (profile_id,))
             state_row = cursor.fetchone()
             if state_row:
-                profile['state'] = dict(state_row)
+                if self.db_type == 'postgres':
+                    state_columns = [desc[0] for desc in cursor.description]
+                    profile['state'] = dict(zip(state_columns, state_row))
+                else:
+                    profile['state'] = dict(state_row)
         
-        conn.close()
+        self.return_connection(conn)
         
         return profile if row else None
     

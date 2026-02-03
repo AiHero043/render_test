@@ -2,6 +2,7 @@
 Web-based Configuration UI for EROME Automation
 Modern Flask application with HTML/CSS/JS interface
 """
+import os
 from flask import Flask, render_template, request, jsonify, redirect, url_for
 from pathlib import Path
 import subprocess
@@ -11,6 +12,8 @@ from database import ProfileDatabase
 import config
 
 app = Flask(__name__)
+
+# Initialize database with DATABASE_URL from environment
 db = ProfileDatabase()
 
 
@@ -152,11 +155,15 @@ def start_webhook():
 
 
 if __name__ == '__main__':
+    # Get port from environment variable (Render.com sets PORT)
+    port = int(os.environ.get('PORT', 5001))
+    
     print("=" * 60)
     print("EROME AUTOMATION - WEB CONFIGURATION UI")
     print("=" * 60)
     print("Starting web interface...")
-    print("Access at: http://localhost:5001")
+    print(f"Access at: http://0.0.0.0:{port}")
+    print(f"Database: {os.environ.get('DATABASE_URL', 'SQLite (local)')[:50]}...")
     print("=" * 60)
     
-    app.run(host='0.0.0.0', port=5001, debug=True)
+    app.run(host='0.0.0.0', port=port, debug=False)
