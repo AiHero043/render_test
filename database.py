@@ -53,9 +53,18 @@ class ProfileDatabase:
         # Get database URL from environment or parameter
         self.db_url = db_url or os.environ.get('DATABASE_URL', 'sqlite:///profiles.db')
         
+        print(f"[DEBUG] DATABASE_URL detected: {self.db_url[:50]}...")
+        print(f"[DEBUG] POSTGRES_AVAILABLE: {POSTGRES_AVAILABLE}")
+        
         # Determine database type
         if self.db_url.startswith('postgresql://') or self.db_url.startswith('postgres://'):
             if not POSTGRES_AVAILABLE:
+                # Try importing again with more details
+                try:
+                    import psycopg2 as pg2_test
+                    print(f"[DEBUG] psycopg2 CAN be imported: {pg2_test}")
+                except ImportError as e:
+                    print(f"[DEBUG] psycopg2 import failed: {e}")
                 raise ImportError("psycopg2 not installed. Install with: pip install psycopg2-binary")
             self.db_type = 'postgres'
             # Create connection pool for PostgreSQL

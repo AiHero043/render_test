@@ -3,18 +3,60 @@ Web-based Configuration UI for EROME Automation
 Modern Flask application with HTML/CSS/JS interface
 """
 import os
-from flask import Flask, render_template, request, jsonify, redirect, url_for
+from flask import Flask, render_template, request, jsonify
 from pathlib import Path
 import subprocess
 import sys
 import threading
-from database import ProfileDatabase
-import config
+from datetime import datetime
+from db import LOCAL_DATABASE_URI, db
+from models import Profile, AutomationState, Job
 
-app = Flask(__name__)
+# Import config for defaults
+try:
+    import config
+    DEFAULT_IMAGEMAGICK = str(config.IMAGEMAGICK_PATH)
+    DEFAULT_HANDBRAKE = str(config.HANDBRAKE_CLI_PATH)
+    DEFAULT_IMAGE_QUALITY_MIN = config.IMAGE_QUALITY_MIN
+    DEFAULT_IMAGE_QUALITY_MAX = config.IMAGE_QUALITY_MAX
+    DEFAULT_VIDEO_RF_MIN = config.VIDEO_RF_MIN
+    DEFAULT_VIDEO_RF_MAX = config.VIDEO_RF_MAX
+    DEFAULT_ENCODER_PRESETS = ','.join(config.VIDEO_ENCODER_PRESETS)
+    DEFAULT_IMAGES_PER_POST = config.IMAGES_PER_POST
+    DEFAULT_VIDEOS_PER_POST = config.VIDEOS_PER_POST
+except:
+    DEFAULT_IMAGEMAGICK = ''
+    DEFAULT_HANDBRAKE = ''
+    DEFAULT_IMAGE_QUALITY_MIN = 85
+    DEFAULT_IMAGE_QUALITY_MAX = 99
+    DEFAULT_VIDEO_RF_MIN = 17.5
+    DEFAULT_VIDEO_RF_MAX = 29
+    DEFAULT_ENCODER_PRESETS = 'veryfast,faster,fast,medium,slow'
+    DEFAULT_IMAGES_PER_POST = 2
+    DEFAULT_VIDEOS_PER_POST = 1
 
-# Initialize database with DATABASE_URL from environment
-db = ProfileDatabase()
+
+def create_app():
+    """Application factory function."""
+    app = Flask(__name__)
+    
+    # Load configuration
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("DATABASE_URL", LOCAL_DATABASE_URI)
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'erome-automation-secret-key')
+    
+    # Initialize extensions
+    db.init_app(app)
+    
+    with app.app_context():
+        db.create_all()
+        print('Initialized the database.')
+    
+    return app
+
+
+# Create app instance
+app = create_app()
 
 
 @app.route('/')
@@ -22,17 +64,17 @@ def index():
     """Main dashboard"""
     # Pass config defaults to template
     defaults = {
-        'imagemagick_path': str(config.IMAGEMAGICK_PATH),
-        'handbrake_path': str(config.HANDBRAKE_CLI_PATH),
-        'credentials_file': str(config.CREDENTIALS_FILE),
-        'token_file': str(config.TOKEN_FILE),
-        'image_quality_min': config.IMAGE_QUALITY_MIN,
-        'image_quality_max': config.IMAGE_QUALITY_MAX,
-        'video_rf_min': config.VIDEO_RF_MIN,
-        'video_rf_max': config.VIDEO_RF_MAX,
-        'encoder_presets': ','.join(config.VIDEO_ENCODER_PRESETS),
-        'images_per_post': config.IMAGES_PER_POST,
-        'videos_per_post': config.VIDEOS_PER_POST
+        'imagemagick_path': DEFAULT_IMAGEMAGICK,
+        'handbrake_path': DEFAULT_HANDBRAKE,
+        'credentials_file': 'credentials.json',
+        'token_file': 'token.pickle',
+        'image_quality_min': DEFAULT_IMAGE_QUALITY_MIN,
+        'image_quality_max': DEFAULT_IMAGE_QUALITY_MAX,
+        'video_rf_min': DEFAULT_VIDEO_RF_MIN,
+        'video_rf_max': DEFAULT_VIDEO_RF_MAX,
+        'encoder_presets': DEFAULT_ENCODER_PRESETS,
+        'images_per_post': DEFAULT_IMAGES_PER_POST,
+        'videos_per_post': DEFAULT_VIDEOS_PER_POST
     }
     return render_template('index.html', defaults=defaults)
 
@@ -40,16 +82,16 @@ def index():
 @app.route('/api/profiles', methods=['GET'])
 def get_profiles():
     """Get all profiles"""
-    profiles = db.get_all_profiles()
-    return jsonify(profiles)
+    profiles = Profile.query.order_by(Profile.created_at.desc()).all()
+    return jsonify([p.to_dict() for p in profiles])
 
 
 @app.route('/api/profiles/<int:profile_id>', methods=['GET'])
 def get_profile(profile_id):
     """Get specific profile"""
-    profile = db.get_profile(profile_id)
+    profile = Profile.query.get(profile_id)
     if profile:
-        return jsonify(profile)
+        return jsonify(profile.to_dict())
     return jsonify({'error': 'Profile not found'}), 404
 
 
@@ -61,74 +103,174 @@ def create_profile():
     if not data.get('name'):
         return jsonify({'error': 'Profile name is required'}), 400
     
-    if db.create_profile(data):
-        return jsonify({'message': 'Profile created successfully'}), 201
-    return jsonify({'error': 'Profile already exists or creation failed'}), 400
+    # Check if profile already exists
+    if Profile.query.filter_by(name=data['name']).first():
+        return jsonify({'error': 'Profile already exists'}), 400
+    
+    try:
+        # Create new profile
+        profile = Profile(
+            name=data['name'],
+            download_folder_id=data['download_folder_id'],
+            upload_folder_id=data['upload_folder_id'],
+            download_dir=data['download_dir'],
+            output_dir=data['output_dir'],
+            renewed_images_dir=data['renewed_images_dir'],
+            renewed_videos_dir=data['renewed_videos_dir'],
+            download_post_start=data.get('download_post_start'),
+            download_post_end=data.get('download_post_end'),
+            credentials_file=data.get('credentials_file', 'credentials.json'),
+            token_file=data.get('token_file', 'token.pickle'),
+            delete_source=data.get('delete_source', False),
+            imagemagick_path=data.get('imagemagick_path', DEFAULT_IMAGEMAGICK),
+            image_quality_min=data.get('image_quality_min', DEFAULT_IMAGE_QUALITY_MIN),
+            image_quality_max=data.get('image_quality_max', DEFAULT_IMAGE_QUALITY_MAX),
+            handbrake_path=data.get('handbrake_path', DEFAULT_HANDBRAKE),
+            video_rf_min=data.get('video_rf_min', DEFAULT_VIDEO_RF_MIN),
+            video_rf_max=data.get('video_rf_max', DEFAULT_VIDEO_RF_MAX),
+            encoder_presets=data.get('encoder_presets', DEFAULT_ENCODER_PRESETS),
+            current_post_number=data.get('current_post_number', 360),
+            set_value=data.get('set_value', 360),
+            max_post=data.get('max_post', 10000),
+            images_per_post=data.get('images_per_post', DEFAULT_IMAGES_PER_POST),
+            videos_per_post=data.get('videos_per_post', DEFAULT_VIDEOS_PER_POST),
+            enable_webhook=data.get('enable_webhook', False),
+            webhook_url=data.get('webhook_url', ''),
+            state_file=f"automation_state_{data['name'].lower().replace(' ', '_')}.json"
+        )
+        db.session.add(profile)
+        db.session.flush()  # Get the profile ID
+        
+        # Create initial automation state
+        state = AutomationState(
+            profile_id=profile.id,
+            current_post=0,
+            next_trigger_post=data.get('set_value', 360),
+            posts_until_trigger=data.get('set_value', 360)
+        )
+        db.session.add(state)
+        db.session.commit()
+        
+        return jsonify({'message': 'Profile created successfully', 'id': profile.id}), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Failed to create profile: {str(e)}'}), 400
 
 
 @app.route('/api/profiles/<int:profile_id>', methods=['PUT'])
 def update_profile(profile_id):
     """Update profile"""
+    profile = Profile.query.get(profile_id)
+    if not profile:
+        return jsonify({'error': 'Profile not found'}), 404
+    
     data = request.json
     
-    if db.update_profile(profile_id, data):
+    try:
+        # Update fields
+        for key in ['download_folder_id', 'upload_folder_id', 'download_dir', 'output_dir',
+                    'renewed_images_dir', 'renewed_videos_dir', 'download_post_start', 
+                    'download_post_end', 'credentials_file', 'token_file', 'delete_source',
+                    'imagemagick_path', 'image_quality_min', 'image_quality_max',
+                    'handbrake_path', 'video_rf_min', 'video_rf_max', 'encoder_presets',
+                    'current_post_number', 'set_value', 'max_post', 'images_per_post',
+                    'videos_per_post', 'enable_webhook', 'webhook_url']:
+            if key in data:
+                setattr(profile, key, data[key])
+        
+        profile.updated_at = datetime.utcnow()
+        db.session.commit()
+        
         return jsonify({'message': 'Profile updated successfully'})
-    return jsonify({'error': 'Update failed'}), 400
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Update failed: {str(e)}'}), 400
 
 
 @app.route('/api/profiles/<int:profile_id>', methods=['DELETE'])
 def delete_profile(profile_id):
     """Delete profile"""
-    if db.delete_profile(profile_id):
+    profile = Profile.query.get(profile_id)
+    if not profile:
+        return jsonify({'error': 'Profile not found'}), 404
+    
+    try:
+        db.session.delete(profile)
+        db.session.commit()
         return jsonify({'message': 'Profile deleted successfully'})
-    return jsonify({'error': 'Delete failed'}), 400
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Delete failed: {str(e)}'}), 400
 
 
 @app.route('/api/profiles/<int:profile_id>/reset-state', methods=['POST'])
 def reset_profile_state(profile_id):
     """Reset automation state"""
-    if db.reset_state(profile_id):
+    profile = Profile.query.get(profile_id)
+    if not profile:
+        return jsonify({'error': 'Profile not found'}), 404
+    
+    try:
+        if profile.automation_state:
+            state = profile.automation_state
+            state.current_post = 0
+            state.next_trigger_post = profile.set_value
+            state.posts_until_trigger = profile.set_value
+            state.total_posts_created = 0
+            state.renewal_count = 0
+            state.last_successful_post = None
+            state.last_renewal_date = None
+            db.session.commit()
         return jsonify({'message': 'State reset successfully'})
-    return jsonify({'error': 'Reset failed'}), 400
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Reset failed: {str(e)}'}), 400
 
 
 @app.route('/api/profiles/<int:profile_id>/run', methods=['POST'])
 def run_profile(profile_id):
     """Create job for automation (to be picked up by worker bot)"""
-    profile = db.get_profile(profile_id)
+    profile = Profile.query.get(profile_id)
     if not profile:
         return jsonify({'error': 'Profile not found'}), 404
     
     force = request.json.get('force', False) if request.json else False
     
-    # Create job in database
-    job_id = db.create_job(profile_id, force_run=force)
-    
-    if job_id:
+    try:
+        # Create job in database
+        job = Job(
+            profile_id=profile_id,
+            force_run=force,
+            status='pending'
+        )
+        db.session.add(job)
+        db.session.commit()
+        
         return jsonify({
             'message': f'Job created for profile ({"force run" if force else "normal run"})',
-            'job_id': job_id,
+            'job_id': job.id,
             'status': 'pending'
         })
-    else:
-        return jsonify({'error': 'Failed to create job'}), 500
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Failed to create job: {str(e)}'}), 500
 
 
 @app.route('/api/jobs/<int:job_id>', methods=['GET'])
 def get_job_status(job_id):
     """Get job status"""
-    job = db.get_job(job_id)
+    job = Job.query.get(job_id)
     if not job:
         return jsonify({'error': 'Job not found'}), 404
-    return jsonify(job)
+    return jsonify(job.to_dict())
 
 
 @app.route('/api/profiles/<int:profile_id>/jobs', methods=['GET'])
 def get_profile_jobs(profile_id):
     """Get recent jobs for a profile"""
     limit = request.args.get('limit', 10, type=int)
-    jobs = db.get_profile_jobs(profile_id, limit)
-    return jsonify(jobs)
+    jobs = Job.query.filter_by(profile_id=profile_id).order_by(Job.created_at.desc()).limit(limit).all()
+    return jsonify([j.to_dict() for j in jobs])
 
 
 @app.route('/api/logs', methods=['GET'])
