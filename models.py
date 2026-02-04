@@ -9,10 +9,6 @@ class Profile(db.Model):
     name = db.Column(db.String(255), unique=True, nullable=False)
     download_folder_id = db.Column(db.String, nullable=False, default='')
     upload_folder_id = db.Column(db.String, nullable=False, default='')
-    download_dir = db.Column(db.String, nullable=False, default='')
-    output_dir = db.Column(db.String, nullable=False, default='')
-    renewed_images_dir = db.Column(db.String, nullable=False, default='')
-    renewed_videos_dir = db.Column(db.String, nullable=False, default='')
     download_post_start = db.Column(db.Integer)
     download_post_end = db.Column(db.Integer)
     credentials_file = db.Column(db.String, default='credentials.json')
@@ -47,10 +43,6 @@ class Profile(db.Model):
             'name': self.name,
             'download_folder_id': self.download_folder_id,
             'upload_folder_id': self.upload_folder_id,
-            'download_dir': self.download_dir,
-            'output_dir': self.output_dir,
-            'renewed_images_dir': self.renewed_images_dir,
-            'renewed_videos_dir': self.renewed_videos_dir,
             'download_post_start': self.download_post_start,
             'download_post_end': self.download_post_end,
             'credentials_file': self.credentials_file,

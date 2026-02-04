@@ -115,10 +115,6 @@ def create_profile():
             name=data['name'],
             download_folder_id=data.get('download_folder_id', ''),
             upload_folder_id=data.get('upload_folder_id', ''),
-            download_dir=data.get('download_dir', ''),
-            output_dir=data.get('output_dir', ''),
-            renewed_images_dir=data.get('renewed_images_dir', ''),
-            renewed_videos_dir=data.get('renewed_videos_dir', ''),
             download_post_start=data.get('download_post_start'),
             download_post_end=data.get('download_post_end'),
             credentials_file=data.get('credentials_file', 'credentials.json'),
@@ -174,8 +170,7 @@ def update_profile(profile_id):
     
     try:
         # Update fields
-        for key in ['download_folder_id', 'upload_folder_id', 'download_dir', 'output_dir',
-                    'renewed_images_dir', 'renewed_videos_dir', 'download_post_start', 
+        for key in ['download_folder_id', 'upload_folder_id', 'download_post_start', 
                     'download_post_end', 'credentials_file', 'token_file', 'delete_source',
                     'imagemagick_path', 'image_quality_min', 'image_quality_max',
                     'handbrake_path', 'video_rf_min', 'video_rf_max', 'encoder_presets',
