@@ -583,8 +583,8 @@
         function getProfileData() {
             return {
                 name: profiles.find(p => p.id === currentProfileId)?.name || 'New Profile',
-                download_dir: document.getElementById('download_dir').value,
-                output_dir: document.getElementById('output_dir').value,
+                download_folder_id: document.getElementById('download_folder_id').value,
+                upload_folder_id: document.getElementById('upload_folder_id').value,
                 download_post_start: document.getElementById('download_post_start').value || null,
                 download_post_end: document.getElementById('download_post_end').value || null,
                 credentials_file: configDefaults.credentials_file,
@@ -714,7 +714,10 @@
         }
 
         function runAutomation(force) {
-            if (!currentProfileId) return;
+            if (!currentProfileId) {
+                showToast('Please select a profile first', 'error');
+                return;
+            }
 
             fetch(`/api/profiles/${currentProfileId}/run`, {
                 method: 'POST',
@@ -722,7 +725,14 @@
                 body: JSON.stringify({force})
             })
             .then(res => res.json())
-            .then(data => showToast(data.message, 'success'));
+            .then(data => {
+                if (data.error) {
+                    showToast(data.error, 'error');
+                } else {
+                    showToast(data.message, 'success');
+                }
+            })
+            .catch(err => showToast('Failed to run automation', 'error'));
         }
 
         function viewStatus() {

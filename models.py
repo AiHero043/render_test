@@ -14,10 +14,8 @@ class Profile(db.Model):
     credentials_file = db.Column(db.String, default='credentials.json')
     token_file = db.Column(db.String, default='token.pickle')
     delete_source = db.Column(db.Boolean, default=False)
-    imagemagick_path = db.Column(db.String)
     image_quality_min = db.Column(db.Integer, default=85)
     image_quality_max = db.Column(db.Integer, default=99)
-    handbrake_path = db.Column(db.String)
     video_rf_min = db.Column(db.Float, default=17.5)
     video_rf_max = db.Column(db.Float, default=29)
     encoder_presets = db.Column(db.String, default='veryfast,faster,fast,medium,slow')
@@ -48,10 +46,8 @@ class Profile(db.Model):
             'credentials_file': self.credentials_file,
             'token_file': self.token_file,
             'delete_source': self.delete_source,
-            'imagemagick_path': self.imagemagick_path,
             'image_quality_min': self.image_quality_min,
             'image_quality_max': self.image_quality_max,
-            'handbrake_path': self.handbrake_path,
             'video_rf_min': self.video_rf_min,
             'video_rf_max': self.video_rf_max,
             'encoder_presets': self.encoder_presets,
