@@ -45,30 +45,38 @@
         }
 
         .main-content {
-            padding: 30px;
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            min-height: 600px;
+        }
+
+        .sidebar {
+            background: #f8f9fa;
+            border-right: 1px solid #dee2e6;
+            padding: 20px;
+        }
+
+        .sidebar h2 {
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+            color: #333;
         }
 
         .profile-selector {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 30px;
-            display: flex;
-            gap: 15px;
-            align-items: center;
-            flex-wrap: wrap;
+            margin-bottom: 20px;
         }
 
         .profile-selector label {
+            display: block;
+            margin-bottom: 8px;
             font-weight: 600;
             color: #333;
-            font-size: 16px;
+            font-size: 14px;
         }
 
         .profile-selector select {
-            flex: 1;
-            min-width: 250px;
-            padding: 10px 15px;
+            width: 100%;
+            padding: 10px 12px;
             border: 2px solid #e0e0e0;
             border-radius: 6px;
             font-size: 14px;
@@ -82,10 +90,8 @@
             border-color: #667eea;
         }
 
-        .quick-actions {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
+        .sidebar-actions {
+            margin-top: 20px;
         }
 
         .btn {
@@ -314,31 +320,37 @@
         </div>
 
         <div class="main-content">
-            <!-- Profile Selector -->
-            <div class="profile-selector">
-                <label for="profileSelect">📁 Select Profile:</label>
-                <select id="profileSelect" onchange="selectProfile(this.value)">
-                    <option value="">-- Choose a profile --</option>
-                </select>
+            <!-- Sidebar -->
+            <div class="sidebar">
+                <h2>📁 Profiles</h2>
                 
-                <div class="quick-actions">
-                    <button class="btn btn-primary" onclick="createNewProfile()">➕ New</button>
-                    <button class="btn btn-success" onclick="saveCurrentProfile()">💾 Save</button>
-                    <button class="btn btn-danger" onclick="deleteCurrentProfile()">🗑️ Delete</button>
-                    <button class="btn btn-warning" onclick="resetProfileState()">🔄 Reset</button>
-                    <button class="btn btn-primary" onclick="runAutomation(false)">▶️ Run</button>
-                    <button class="btn btn-warning" onclick="runAutomation(true)">⚡ Force</button>
-                    <button class="btn btn-primary" onclick="viewStatus()">📊 Status</button>
+                <div class="profile-selector">
+                    <label for="profileSelect">Select Profile:</label>
+                    <select id="profileSelect" onchange="selectProfile(this.value)">
+                        <option value="">-- Choose a profile --</option>
+                    </select>
+                </div>
+
+                <div class="sidebar-actions">
+                    <button class="btn btn-primary" onclick="createNewProfile()">➕ New Profile</button>
+                    <button class="btn btn-success" onclick="saveCurrentProfile()">💾 Save Profile</button>
+                    <button class="btn btn-danger" onclick="deleteCurrentProfile()">🗑️ Delete Profile</button>
+                    <hr style="margin: 20px 0; border: none; border-top: 1px solid #ddd;">
+                    <button class="btn btn-warning" onclick="resetProfileState()">🔄 Reset State</button>
+                    <button class="btn btn-primary" onclick="runAutomation(false)">▶️ Run Automation</button>
+                    <button class="btn btn-warning" onclick="runAutomation(true)">⚡ Force Run</button>
+                    <button class="btn btn-primary" onclick="viewStatus()">📊 View Status</button>
                 </div>
             </div>
 
             <!-- Main Content -->
-            <div id="noProfileSelected" class="empty-state">
-                <h3>Welcome to EROME Automation</h3>
-                <p>Select a profile from the dropdown above or create a new one to begin configuration.</p>
-            </div>
+            <div class="content-area">
+                <div id="noProfileSelected" class="empty-state">
+                    <h3>Welcome to EROME Automation</h3>
+                    <p>Select a profile from the dropdown or create a new one to begin configuration.</p>
+                </div>
 
-            <div id="profileEditor" style="display: none;">
+                <div id="profileEditor" style="display: none;">
                     <div class="tabs">
                         <button class="tab active" onclick="switchTab('directories')">📂 Directories</button>
                         <button class="tab" onclick="switchTab('gdrive')">☁️ Google Drive</button>
