@@ -12,11 +12,7 @@ DATABASE_URL = os.environ.get('DATABASE_URL', 'sqlite:///profiles.db')
 # ========== DIRECTORY PATHS ==========
 # Local directories
 DOWNLOAD_DIR = Path(r"D:\projects\freelance\data\drive_downloads")
-# TEMP_DIR = Path(r"D:\projects\freelance\data\Temp")
-# MEDIA_POOL_DIR = Path(r"C:\Users\UKGC\Desktop\MediaPool") # contains images and videos downloaded from gdrive
 OUTPUT_DIR = Path(r"D:\projects\freelance\data\Posts") # output folder after sorting images and videos into posts 2 images 1 video
-RENEWED_IMAGES_DIR = Path(r"D:\projects\freelance\data\Batch\_renewed")
-RENEWED_VIDEOS_DIR = Path(r"D:\projects\freelance\data\Batch\VIDEOS")
 
 # ========== GOOGLE DRIVE SETTINGS ==========
 GOOGLE_DRIVE_DOWNLOAD_FOLDER_ID = "1orLexTWIjg2jDGAfULwvJbRlnCU4cZF_"  # Folder ID to download source content from
@@ -29,7 +25,6 @@ DOWNLOAD_POST_START = 1    # Starting post number to download
 DOWNLOAD_POST_END = 10     # Ending post number to download (None = download all files/folders)
 
 # ========== POST MANAGEMENT ==========
-CURRENT_POST_NUMBER = 360  # Starting post number (will be updated automatically)
 SET_VALUE = 360  # Trigger renewal every X posts
 MAX_POST = 10000  # Maximum post number before resetting
 
