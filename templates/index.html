@@ -333,7 +333,6 @@
 
                 <div class="sidebar-actions">
                     <button class="btn btn-primary" onclick="createNewProfile()">➕ New Profile</button>
-                    <button class="btn btn-success" onclick="saveCurrentProfile()">💾 Save Profile</button>
                     <button class="btn btn-danger" onclick="deleteCurrentProfile()">🗑️ Delete Profile</button>
                     <hr style="margin: 20px 0; border: none; border-top: 1px solid #ddd;">
                     <button class="btn btn-warning" onclick="resetProfileState()">🔄 Reset State</button>
@@ -351,6 +350,15 @@
                 </div>
 
                 <div id="profileEditor" style="display: none;">
+                    <!-- Profile Name Section (always visible at top) -->
+                    <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Profile Name *</label>
+                            <input type="text" id="profile_name" placeholder="Enter profile name" style="font-size: 16px; font-weight: 600;">
+                            <div class="help-text">Unique identifier for this configuration profile</div>
+                        </div>
+                    </div>
+
                     <div class="tabs">
                         <button class="tab active" onclick="switchTab('directories')">📂 Directories</button>
                         <button class="tab" onclick="switchTab('gdrive')">☁️ Google Drive</button>
@@ -568,6 +576,8 @@
         }
 
         function loadProfileData(profile) {
+            document.getElementById('profile_name').value = profile.name || '';
+            document.getElementById('profile_name').readOnly = true; // Can't change name of existing profile
             document.getElementById('download_dir').value = profile.download_dir || '';
             document.getElementById('output_dir').value = profile.output_dir || '';
             document.getElementById('download_folder_id').value = profile.download_folder_id || '';
@@ -617,52 +627,88 @@
         }
 
         function createNewProfile() {
-            const name = prompt('Enter profile name:');
-            if (!name) return;
-
-            const data = { name, ...getProfileData() };
-            data.name = name;
-
-            fetch('/api/profiles', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(data)
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.error) {
-                    showToast(data.error, 'error');
-                } else {
-                    showToast('Profile created successfully!', 'success');
-                    // Reload profiles and select the new one
-                    loadProfiles().then(() => {
-                        if (data.id) {
-                            selectProfile(data.id);
-                        }
-                    });
-                }
-            })
-            .catch(err => showToast('Failed to create profile', 'error'));
+            // Show the editor with empty form
+            currentProfileId = null;
+            document.getElementById('noProfileSelected').style.display = 'none';
+            document.getElementById('profileEditor').style.display = 'block';
+            
+            // Clear all fields
+            document.getElementById('profile_name').value = '';
+            document.getElementById('profile_name').readOnly = false;
+            document.getElementById('download_dir').value = '';
+            document.getElementById('output_dir').value = '';
+            document.getElementById('renewed_images_dir').value = '';
+            document.getElementById('renewed_videos_dir').value = '';
+            document.getElementById('download_folder_id').value = '';
+            document.getElementById('upload_folder_id').value = '';
+            document.getElementById('download_post_start').value = '';
+            document.getElementById('download_post_end').value = '';
+            document.getElementById('credentials_file').value = defaults.credentials_file;
+            document.getElementById('token_file').value = defaults.token_file;
+            document.getElementById('imagemagick_path').value = defaults.imagemagick_path;
+            document.getElementById('image_quality_min').value = defaults.image_quality_min;
+            document.getElementById('image_quality_max').value = defaults.image_quality_max;
+            document.getElementById('handbrake_path').value = defaults.handbrake_path;
+            document.getElementById('video_rf_min').value = defaults.video_rf_min;
+            document.getElementById('video_rf_max').value = defaults.video_rf_max;
+            document.getElementById('encoder_presets').value = defaults.encoder_presets;
+            document.getElementById('current_post').value = 360;
+            document.getElementById('set_value').value = 360;
+            document.getElementById('max_post').value = 10000;
+            document.getElementById('images_per_post').value = defaults.images_per_post;
+            document.getElementById('videos_per_post').value = defaults.videos_per_post;
+            document.getElementById('enable_webhook').checked = false;
+            document.getElementById('webhook_url').value = '';
+            
+            showToast('Fill in the profile details and click Save', 'success');
         }
 
         function saveCurrentProfile() {
-            if (!currentProfileId) {
-                showToast('No profile selected', 'error');
+            const profileName = document.getElementById('profile_name').value.trim();
+            
+            if (!profileName) {
+                showToast('Profile name is required!', 'error');
                 return;
             }
 
             const data = getProfileData();
+            data.name = profileName;
 
-            fetch(`/api/profiles/${currentProfileId}`, {
-                method: 'PUT',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(data)
-            })
-            .then(res => res.json())
-            .then(data => {
-                showToast('Profile saved successfully!', 'success');
-            })
-            .catch(err => showToast('Failed to save profile', 'error'));
+            if (!currentProfileId) {
+                // Create new profile
+                fetch('/api/profiles', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                })
+                .then(res => res.json())
+                .then(response => {
+                    if (response.error) {
+                        showToast(response.error, 'error');
+                    } else {
+                        showToast('Profile created and saved successfully!', 'success');
+                        currentProfileId = response.id;
+                        document.getElementById('profile_name').readOnly = true;
+                        loadProfiles().then(() => {
+                            selectProfile(response.id);
+                        });
+                    }
+                })
+                .catch(err => showToast('Failed to create profile', 'error'));
+            } else {
+                // Update existing profile
+                fetch(`/api/profiles/${currentProfileId}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                })
+                .then(res => res.json())
+                .then(response => {
+                    showToast('Profile saved successfully!', 'success');
+                    loadProfiles();
+                })
+                .catch(err => showToast('Failed to save profile', 'error'));
+            }
         }
 
         function deleteCurrentProfile() {
