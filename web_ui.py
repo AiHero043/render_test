@@ -100,6 +100,8 @@ def create_profile():
     """Create new profile"""
     data = request.json
     
+    print(f"Received profile creation request: {data}")
+    
     if not data.get('name'):
         return jsonify({'error': 'Profile name is required'}), 400
     
@@ -108,15 +110,15 @@ def create_profile():
         return jsonify({'error': 'Profile already exists'}), 400
     
     try:
-        # Create new profile
+        # Create new profile with defaults for missing fields
         profile = Profile(
             name=data['name'],
-            download_folder_id=data['download_folder_id'],
-            upload_folder_id=data['upload_folder_id'],
-            download_dir=data['download_dir'],
-            output_dir=data['output_dir'],
-            renewed_images_dir=data['renewed_images_dir'],
-            renewed_videos_dir=data['renewed_videos_dir'],
+            download_folder_id=data.get('download_folder_id', ''),
+            upload_folder_id=data.get('upload_folder_id', ''),
+            download_dir=data.get('download_dir', ''),
+            output_dir=data.get('output_dir', ''),
+            renewed_images_dir=data.get('renewed_images_dir', ''),
+            renewed_videos_dir=data.get('renewed_videos_dir', ''),
             download_post_start=data.get('download_post_start'),
             download_post_end=data.get('download_post_end'),
             credentials_file=data.get('credentials_file', 'credentials.json'),
@@ -151,9 +153,13 @@ def create_profile():
         db.session.add(state)
         db.session.commit()
         
+        print(f"Profile created successfully with ID: {profile.id}")
         return jsonify({'message': 'Profile created successfully', 'id': profile.id}), 201
     except Exception as e:
         db.session.rollback()
+        print(f"Error creating profile: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': f'Failed to create profile: {str(e)}'}), 400
 
 
