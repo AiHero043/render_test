@@ -513,16 +513,23 @@
         };
 
         function loadProfiles() {
-            fetch('/api/profiles')
+            return fetch('/api/profiles')
                 .then(res => res.json())
                 .then(data => {
                     profiles = data;
                     renderProfileList();
+                    return data;
+                })
+                .catch(err => {
+                    console.error('Failed to load profiles:', err);
+                    showToast('Failed to load profiles', 'error');
                 });
         }
 
         function renderProfileList() {
             const select = document.getElementById('profileSelect');
+            
+            console.log('Rendering profile list, total profiles:', profiles.length);
             
             if (profiles.length === 0) {
                 select.innerHTML = '<option value="">-- No profiles available --</option>';
@@ -530,11 +537,14 @@
             }
 
             select.innerHTML = '<option value="">-- Choose a profile --</option>' + 
-                profiles.map(p => `
-                    <option value="${p.id}" ${p.id === currentProfileId ? 'selected' : ''}>
-                        ${p.name} (${new Date(p.created_at).toLocaleDateString()})
-                    </option>
-                `).join('');
+                profiles.map(p => {
+                    console.log('Adding profile to dropdown:', p.name, p.id);
+                    return `
+                        <option value="${p.id}" ${p.id === currentProfileId ? 'selected' : ''}>
+                            ${p.name} (${new Date(p.created_at).toLocaleDateString()})
+                        </option>
+                    `;
+                }).join('');
         }
 
         function selectProfile(id) {
@@ -620,8 +630,17 @@
             })
             .then(res => res.json())
             .then(data => {
-                showToast('Profile created successfully!', 'success');
-                loadProfiles();
+                if (data.error) {
+                    showToast(data.error, 'error');
+                } else {
+                    showToast('Profile created successfully!', 'success');
+                    // Reload profiles and select the new one
+                    loadProfiles().then(() => {
+                        if (data.id) {
+                            selectProfile(data.id);
+                        }
+                    });
+                }
             })
             .catch(err => showToast('Failed to create profile', 'error'));
         }
