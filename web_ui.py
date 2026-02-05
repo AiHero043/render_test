@@ -120,10 +120,8 @@ def create_profile():
             credentials_file=data.get('credentials_file', 'credentials.json'),
             token_file=data.get('token_file', 'token.pickle'),
             delete_source=data.get('delete_source', False),
-            imagemagick_path=data.get('imagemagick_path', DEFAULT_IMAGEMAGICK),
             image_quality_min=data.get('image_quality_min', DEFAULT_IMAGE_QUALITY_MIN),
             image_quality_max=data.get('image_quality_max', DEFAULT_IMAGE_QUALITY_MAX),
-            handbrake_path=data.get('handbrake_path', DEFAULT_HANDBRAKE),
             video_rf_min=data.get('video_rf_min', DEFAULT_VIDEO_RF_MIN),
             video_rf_max=data.get('video_rf_max', DEFAULT_VIDEO_RF_MAX),
             encoder_presets=data.get('encoder_presets', DEFAULT_ENCODER_PRESETS),
@@ -172,8 +170,8 @@ def update_profile(profile_id):
         # Update fields
         for key in ['download_folder_id', 'upload_folder_id', 'download_post_start', 
                     'download_post_end', 'credentials_file', 'token_file', 'delete_source',
-                    'imagemagick_path', 'image_quality_min', 'image_quality_max',
-                    'handbrake_path', 'video_rf_min', 'video_rf_max', 'encoder_presets',
+                    'image_quality_min', 'image_quality_max',
+                    'video_rf_min', 'video_rf_max', 'encoder_presets',
                     'current_post_number', 'set_value', 'max_post', 'images_per_post',
                     'videos_per_post', 'enable_webhook', 'webhook_url']:
             if key in data:
