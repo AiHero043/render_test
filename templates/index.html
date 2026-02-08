@@ -437,10 +437,17 @@
                         <h2>Automation Settings</h2>
                         <div class="form-row">
                             <div class="form-group">
+                                <label>Start From Post Number</label>
+                                <input type="number" id="current_post" value="0">
+                                <div class="help-text">Starting post number for automation (e.g., 100 to start from post_100)</div>
+                            </div>
+                            <div class="form-group">
                                 <label>Trigger Every X Posts</label>
                                 <input type="number" id="set_value" value="360">
                                 <div class="help-text">Automation runs after this many posts are created</div>
                             </div>
+                        </div>
+                        <div class="form-row">
                             <div class="form-group">
                                 <label>Maximum Post Number</label>
                                 <input type="number" id="max_post" value="10000">
@@ -572,6 +579,7 @@
             document.getElementById('video_rf_min').value = profile.video_rf_min || configDefaults.video_rf_min;
             document.getElementById('video_rf_max').value = profile.video_rf_max || configDefaults.video_rf_max;
             document.getElementById('encoder_presets').value = profile.encoder_presets || configDefaults.encoder_presets;
+            document.getElementById('current_post').value = profile.state?.current_post || 0;
             document.getElementById('set_value').value = profile.set_value || 360;
             document.getElementById('max_post').value = profile.max_post || 10000;
             document.getElementById('images_per_post').value = profile.images_per_post || configDefaults.images_per_post;
@@ -597,6 +605,7 @@
                 video_rf_min: parseFloat(document.getElementById('video_rf_min').value),
                 video_rf_max: parseFloat(document.getElementById('video_rf_max').value),
                 encoder_presets: document.getElementById('encoder_presets').value,
+                current_post: parseInt(document.getElementById('current_post').value) || 0,
                 set_value: parseInt(document.getElementById('set_value').value),
                 max_post: parseInt(document.getElementById('max_post').value),
                 images_per_post: parseInt(document.getElementById('images_per_post').value),
@@ -628,7 +637,7 @@
             document.getElementById('video_rf_min').value = defaults.video_rf_min;
             document.getElementById('video_rf_max').value = defaults.video_rf_max;
             document.getElementById('encoder_presets').value = defaults.encoder_presets;
-            document.getElementById('current_post').value = 360;
+            document.getElementById('current_post').value = 0;
             document.getElementById('set_value').value = 360;
             document.getElementById('max_post').value = 10000;
             document.getElementById('images_per_post').value = defaults.images_per_post;
@@ -736,14 +745,21 @@
         }
 
         function viewStatus() {
-            if (!currentProfileId) return;
+            if (!currentProfileId) {
+                showToast('Please select a profile first', 'error');
+                return;
+            }
 
-            fetch(`/api/profiles/${currentProfileId}`)
+            fetch(`/api/profiles/${currentProfileId}/state`)
                 .then(res => res.json())
-                .then(profile => {
-                    const state = profile.state || {};
-                    alert(`Profile: ${profile.name}\n\nCurrent Post: ${state.current_post || 0}\nNext Trigger: ${state.next_trigger_post || 'N/A'}\nTotal Posts: ${state.total_posts_created || 0}\nRenewal Count: ${state.renewal_count || 0}`);
-                });
+                .then(state => {
+                    if (!state || Object.keys(state).length === 0) {
+                        showToast('No state data available', 'error');
+                        return;
+                    }
+                    alert(`Current Post: ${state.current_post || 0}\nNext Trigger: ${state.next_trigger_post || 'N/A'}\nPosts Until Trigger: ${state.posts_until_trigger || 'N/A'}\nTotal Posts: ${state.total_posts_created || 0}\nRenewal Count: ${state.renewal_count || 0}\nLast Successful Post: ${state.last_successful_post || 'N/A'}\nLast Renewal: ${state.last_renewal_date || 'N/A'}`);
+                })
+                .catch(err => showToast('Failed to load status', 'error'));
         }
 
         function viewLogs() {

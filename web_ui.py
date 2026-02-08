@@ -140,8 +140,8 @@ def create_profile():
         # Create initial automation state
         state = AutomationState(
             profile_id=profile.id,
-            current_post=0,
-            next_trigger_post=data.get('set_value', 360),
+            current_post=data.get('current_post', 0),
+            next_trigger_post=data.get('current_post', 0) + data.get('set_value', 360),
             posts_until_trigger=data.get('set_value', 360)
         )
         db.session.add(state)
@@ -167,7 +167,7 @@ def update_profile(profile_id):
     data = request.json
     
     try:
-        # Update fields
+        # Update profile fields
         for key in ['download_folder_id', 'upload_folder_id', 'download_post_start', 
                     'download_post_end', 'credentials_file', 'token_file', 'delete_source',
                     'image_quality_min', 'image_quality_max',
@@ -176,6 +176,12 @@ def update_profile(profile_id):
                     'videos_per_post', 'enable_webhook', 'webhook_url']:
             if key in data:
                 setattr(profile, key, data[key])
+        
+        # Update automation state if current_post is provided
+        if 'current_post' in data and profile.automation_state:
+            profile.automation_state.current_post = data['current_post']
+            profile.automation_state.next_trigger_post = data['current_post'] + profile.set_value
+            profile.automation_state.posts_until_trigger = profile.set_value
         
         profile.updated_at = datetime.utcnow()
         db.session.commit()
@@ -200,6 +206,13 @@ def delete_profile(profile_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': f'Delete failed: {str(e)}'}), 400
+
+
+@app.route('/api/profiles/<int:profile_id>/state', methods=['GET'])
+def get_profile_state(profile_id):
+    """Get automation state for profile"""
+    state = AutomationState.query.filter_by(profile_id=profile_id).first()
+    return jsonify(state.to_dict() if state else {})
 
 
 @app.route('/api/profiles/<int:profile_id>/reset-state', methods=['POST'])
