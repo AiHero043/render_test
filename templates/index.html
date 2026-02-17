@@ -757,7 +757,14 @@
                         showToast('No state data available', 'error');
                         return;
                     }
-                    alert(`Current Post: ${state.current_post || 0}\nNext Trigger: ${state.next_trigger_post || 'N/A'}\nPosts Until Trigger: ${state.posts_until_trigger || 'N/A'}\nTotal Posts: ${state.total_posts_created || 0}\nRenewal Count: ${state.renewal_count || 0}\nLast Successful Post: ${state.last_successful_post || 'N/A'}\nLast Renewal: ${state.last_renewal_date || 'N/A'}`);
+                    // Format chunk tracking info
+                    let chunkInfo = '';
+                    if (state.current_download_start && state.current_download_end) {
+                        chunkInfo = `\n\n--- CHUNK TRACKING ---\nCurrent Chunk: Posts ${state.current_download_start}-${state.current_download_end}\nChunk Size: ${state.chunk_size || 100}\nDownload Range: Posts ${state.download_range_start || '?'}-${state.download_range_end || '?'}`;
+                    } else {
+                        chunkInfo = `\n\n--- CHUNK TRACKING ---\nCurrent Chunk: Not initialized\nChunk Size: ${state.chunk_size || 100}\nDownload Range: Posts ${state.download_range_start || '?'}-${state.download_range_end || '?'}`;
+                    }
+                    alert(`Current Post: ${state.current_post || 0}\nNext Trigger: ${state.next_trigger_post || 'N/A'}\nPosts Until Trigger: ${state.posts_until_trigger || 'N/A'}\nTotal Posts: ${state.total_posts_created || 0}\nRenewal Count: ${state.renewal_count || 0}\nLast Successful Post: ${state.last_successful_post || 'N/A'}\nLast Renewal: ${state.last_renewal_date || 'N/A'}${chunkInfo}`);
                 })
                 .catch(err => showToast('Failed to load status', 'error'));
         }

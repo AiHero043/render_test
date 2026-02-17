@@ -86,6 +86,13 @@ class AutomationState(db.Model):
     last_successful_post = db.Column(db.Integer)
     last_renewal_date = db.Column(db.DateTime)
     
+    # Chunk tracking for download ranges
+    current_download_start = db.Column(db.Integer, default=None, nullable=True)
+    current_download_end = db.Column(db.Integer, default=None, nullable=True)
+    chunk_size = db.Column(db.Integer, default=100, nullable=False)
+    download_range_start = db.Column(db.Integer, default=1, nullable=False)
+    download_range_end = db.Column(db.Integer, default=200, nullable=False)
+    
     def to_dict(self):
         return {
             'id': self.id,
@@ -96,7 +103,12 @@ class AutomationState(db.Model):
             'total_posts_created': self.total_posts_created,
             'renewal_count': self.renewal_count,
             'last_successful_post': self.last_successful_post,
-            'last_renewal_date': self.last_renewal_date.isoformat() if self.last_renewal_date else None
+            'last_renewal_date': self.last_renewal_date.isoformat() if self.last_renewal_date else None,
+            'current_download_start': self.current_download_start,
+            'current_download_end': self.current_download_end,
+            'chunk_size': self.chunk_size,
+            'download_range_start': self.download_range_start,
+            'download_range_end': self.download_range_end
         }
     
     def __repr__(self):

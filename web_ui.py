@@ -232,6 +232,12 @@ def reset_profile_state(profile_id):
             state.renewal_count = 0
             state.last_successful_post = None
             state.last_renewal_date = None
+            # Reset chunk tracking
+            state.current_download_start = None
+            state.current_download_end = None
+            state.chunk_size = profile.chunk_size if hasattr(profile, 'chunk_size') and profile.chunk_size else 100
+            state.download_range_start = profile.download_post_start if hasattr(profile, 'download_post_start') and profile.download_post_start else 1
+            state.download_range_end = profile.download_post_end if hasattr(profile, 'download_post_end') and profile.download_post_end else 200
             db.session.commit()
         return jsonify({'message': 'State reset successfully'})
     except Exception as e:
